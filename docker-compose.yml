@@ -1,0 +1,22 @@
+services:
+    mysql:
+        image: mysql:8.0
+        container_name: db-berkat-bps
+        restart: unless-stopped
+        environment:
+            MYSQL_DATABASE: web_berkat_bpskabmalang
+            MYSQL_ROOT_PASSWORD: root
+        ports:
+            - "3307:3306"
+        volumes:
+            - db_data:/var/lib/mysql
+
+    adminer:
+        image: adminer
+        container_name: adminer-berkat-bps
+        restart: unless-stopped
+        ports:
+            - "8081:8080"
+
+volumes:
+    db_data:
