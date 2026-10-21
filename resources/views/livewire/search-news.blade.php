@@ -128,7 +128,8 @@
                             <p class="mt-1 text-xs text-slate-400">{{ $artikel['tanggal_label'] }}</p>
 
                             <button type="button" wire:click="pilih({{ $i }})"
-                                    class="mt-3 rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-bps hover:text-bps">
+                                    wire:loading.attr="disabled" wire:target="pilih"
+                                    class="mt-3 rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-bps hover:text-bps disabled:opacity-60">
                                 Pilih artikel ini
                             </button>
                         </article>
@@ -136,5 +137,25 @@
                 </div>
             @endif
         </section>
+    @endif
+
+    {{-- ===== OVERLAY LOADING (saat isi artikel diambil) ===== --}}
+    <div wire:loading.flex wire:target="pilih"
+         class="fixed inset-0 z-[60] items-center justify-center bg-slate-900/40 backdrop-blur-sm">
+        <div class="flex items-center gap-3 rounded-xl bg-white px-6 py-4 shadow-xl">
+            <svg class="h-5 w-5 animate-spin text-bps" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4a4 4 0 0 0-4 4H4Z"></path>
+            </svg>
+            <p class="text-sm text-slate-700">Mengambil isi artikel...</p>
+        </div>
+    </div>
+
+    {{-- ===== MODAL BACA ARTIKEL ===== --}}
+    @if ($modalBuka && $artikelDipilih)
+        <x-reader-modal :artikel="$artikelDipilih"
+                        :bacaan="$bacaan"
+                        :pesan="$pesanBacaan"
+                        :jalur="$jalurPencarian" />
     @endif
 </div>
