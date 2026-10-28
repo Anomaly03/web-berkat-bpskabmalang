@@ -3,8 +3,10 @@
 namespace App\Livewire;
 
 use App\Models\Category;
+use App\Services\AIService;
 use App\Services\ArticleExtractorService;
 use App\Services\NewsService;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
@@ -25,8 +27,21 @@ class SearchNews extends Component
     public ?string $pesanError = null;
     public string $labelPencarian = '';
 
+    // ---- Konteks pencarian (dikunci saat tombol Cari ditekan) ----
     #[Locked]
     public array $jalurPencarian = [];
+
+    #[Locked]
+    public ?int $kategoriIdHasil = null;
+
+    #[Locked]
+    public int $bulanHasil = 0;
+
+    #[Locked]
+    public int $tahunHasil = 0;
+
+    #[Locked]
+    public string $periodeLabel = '';
 
     // ---- Modal baca artikel ----
     public bool $modalBuka = false;
@@ -39,6 +54,11 @@ class SearchNews extends Component
 
     public ?string $pesanBacaan = null;
     public string $teksManual = '';
+
+    // ---- Modal review ringkasan ----
+    public bool $modalReview = false;
+    public string $ringkasan = '';
+    public ?string $pesanRingkas = null;
 
     public function updatedSektorId(): void
     {
@@ -58,7 +78,7 @@ class SearchNews extends Component
         return $id !== '' ? Category::find((int) $id) : null;
     }
 
-    /** Jalur dari sektor sampai level terdalam, mis. ["C. Industri Pengolahan", "2. Industri Makanan dan Minuman"] */
+    /** Jalur dari sektor sampai level terdalam. */
     private function jalurKategori(?Category $kategori): array
     {
         $jalur = [];
@@ -102,8 +122,12 @@ class SearchNews extends Component
             9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember',
         ];
 
-        $this->labelPencarian = $kategori->nama_kategori . ' · ' . $namaBulan[(int) $this->bulan] . ' ' . $this->tahun;
+        $this->periodeLabel = $namaBulan[(int) $this->bulan] . ' ' . $this->tahun;
+        $this->labelPencarian = $kategori->nama_kategori . ' · ' . $this->periodeLabel;
         $this->jalurPencarian = $this->jalurKategori($kategori);
+        $this->kategoriIdHasil = $kategori->id;
+        $this->bulanHasil = (int) $this->bulan;
+        $this->tahunHasil = (int) $this->tahun;
 
         try {
             $this->hasil = $news->search($kategori->nama_kategori, (int) $this->bulan, (int) $this->tahun);
@@ -124,8 +148,11 @@ class SearchNews extends Component
         $this->artikelDipilih = $artikel;
         $this->bacaan = null;
         $this->pesanBacaan = null;
+        $this->pesanRingkas = null;
         $this->teksManual = '';
-        $this->resetErrorBag('teksManual');
+        $this->ringkasan = '';
+        $this->modalReview = false;
+        $this->resetErrorBag();
 
         try {
             $this->bacaan = $extractor->ekstrak($artikel['link']);
@@ -161,15 +188,65 @@ class SearchNews extends Component
         $this->pesanBacaan = null;
     }
 
-    public function ringkas(): void
+    /** Klik "Pilih & Ringkas": minta AI meringkas, lalu buka modal review. */
+    public function ringkas(AIService $ai): void
     {
-        // SEMENTARA: tahap berikutnya -> AIService::summarize(), lalu tampilkan review & simpan.
-        dd($this->artikelDipilih, $this->bacaan);
+        if ($this->bacaan === null || $this->artikelDipilih === null) {
+            return;
+        }
+
+        $this->pesanRingkas = null;
+
+        try {
+            $this->ringkasan = $ai->ringkas(
+                $this->artikelDipilih['judul'],
+                $this->bacaan['paragraf'],
+                Arr::last($this->jalurPencarian) ?? ''
+            );
+
+            $this->resetErrorBag('ringkasan');
+            $this->modalBuka = false;
+            $this->modalReview = true;
+        } catch (\RuntimeException $e) {
+            $this->pesanRingkas = $e->getMessage();
+        } catch (\Throwable $e) {
+            Log::error('Peringkasan gagal', ['error' => $e->getMessage()]);
+            $this->pesanRingkas = 'Terjadi kesalahan saat meringkas artikel.';
+        }
+    }
+
+    /** Klik "Simpan ke Data". */
+    public function simpan(): void
+    {
+        $this->validate(
+            ['ringkasan' => 'required|min:50|max:3000'],
+            [
+                'ringkasan.required' => 'Ringkasan tidak boleh kosong.',
+                'ringkasan.min'      => 'Ringkasan terlalu pendek (minimal 50 karakter).',
+                'ringkasan.max'      => 'Ringkasan terlalu panjang (maksimal 3000 karakter).',
+            ]
+        );
+
+        // SEMENTARA: tahap berikutnya -> Article::create([...]) ke database.
+        dd([
+            'category_id'   => $this->kategoriIdHasil,
+            'judul'         => $this->artikelDipilih['judul'],
+            'link'          => $this->bacaan['url_asli'],
+            'sumber'        => $this->artikelDipilih['sumber'],
+            'tanggal_rilis' => substr($this->artikelDipilih['tanggal'], 0, 10),
+            'ringkasan'     => $this->ringkasan,
+            'bulan_target'  => $this->bulanHasil,
+            'tahun_target'  => $this->tahunHasil,
+        ]);
     }
 
     public function tutup(): void
     {
-        $this->reset(['modalBuka', 'artikelDipilih', 'bacaan', 'pesanBacaan', 'teksManual']);
+        $this->reset([
+            'modalBuka', 'modalReview', 'artikelDipilih', 'bacaan',
+            'pesanBacaan', 'pesanRingkas', 'teksManual', 'ringkasan',
+        ]);
+        $this->resetErrorBag();
     }
 
     public function render()
