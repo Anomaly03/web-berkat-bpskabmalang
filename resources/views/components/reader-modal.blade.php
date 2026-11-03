@@ -1,4 +1,4 @@
-@props(['artikel', 'bacaan' => null, 'pesan' => null, 'jalur' => []])
+@props(['artikel', 'bacaan' => null, 'pesan' => null, 'jalur' => [], 'errorRingkas' => null])
 
 @php
     $waktu  = \Carbon\Carbon::parse($artikel['tanggal'])->locale('id')->translatedFormat('j F Y, H:i') . ' WIB';
@@ -86,6 +86,13 @@
                 </div>
             @endif
         </div>
+
+        {{-- ===== Pesan gagal meringkas ===== --}}
+        @if ($errorRingkas)
+            <div class="border-t border-red-200 bg-red-50 px-5 py-2 text-xs text-red-700">
+                {{ $errorRingkas }}
+            </div>
+        @endif
 
         {{-- ===== Footer: domain + aksi ===== --}}
         <div class="flex items-center justify-between gap-3 border-t border-slate-200 bg-slate-100 px-5 py-3">

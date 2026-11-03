@@ -1,8 +1,7 @@
 @php
     $bulanList = [
-        1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
-        5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
-        9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember',
+        1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April', 5 => 'Mei', 
+        6 => 'Juni', 7 => 'Juli', 8 => 'Agustus', 9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember',
     ];
     $tahunList = range(now()->year, now()->year - 5);
 
@@ -139,15 +138,18 @@
         </section>
     @endif
 
-    {{-- ===== OVERLAY LOADING (saat isi artikel diambil) ===== --}}
-    <div wire:loading.flex wire:target="pilih"
+    {{-- ===== OVERLAY LOADING (ambil artikel / ringkas AI) ===== --}}
+    <div wire:loading.flex wire:target="pilih,ringkas"
          class="fixed inset-0 z-[60] items-center justify-center bg-slate-900/40 backdrop-blur-sm">
         <div class="flex items-center gap-3 rounded-xl bg-white px-6 py-4 shadow-xl">
             <svg class="h-5 w-5 animate-spin text-bps" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4a4 4 0 0 0-4 4H4Z"></path>
             </svg>
-            <p class="text-sm text-slate-700">Mengambil isi artikel...</p>
+            <p class="text-sm text-slate-700">
+                <span wire:loading wire:target="pilih">Mengambil isi artikel...</span>
+                <span wire:loading wire:target="ringkas">Meringkas dengan AI...</span>
+            </p>
         </div>
     </div>
 
@@ -156,6 +158,15 @@
         <x-reader-modal :artikel="$artikelDipilih"
                         :bacaan="$bacaan"
                         :pesan="$pesanBacaan"
-                        :jalur="$jalurPencarian" />
+                        :jalur="$jalurPencarian"
+                        :error-ringkas="$pesanRingkas" />
+    @endif
+
+    {{-- ===== MODAL REVIEW RINGKASAN ===== --}}
+    @if ($modalReview && $artikelDipilih)
+        <x-review-modal :artikel="$artikelDipilih"
+                        :jalur="$jalurPencarian"
+                        :periode="$periodeLabel"
+                        :awal="$ringkasan" />
     @endif
 </div>
