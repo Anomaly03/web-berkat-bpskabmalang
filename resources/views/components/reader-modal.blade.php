@@ -8,6 +8,7 @@
     'review' => false,
     'periode' => '',
     'awal' => '',
+    'artikelLama' => null,
 ])
 
 @php
@@ -119,6 +120,16 @@
                         {{ \Illuminate\Support\Arr::last($jalur) }} &rsaquo; {{ $periode }}
                     </p>
 
+                    @if ($artikelLama)
+                        <div class="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                            <p class="font-semibold">Kategori ini sudah punya artikel tersimpan untuk {{ $periode }}.</p>
+                            <p class="mt-0.5">
+                                {{ $artikelLama['judul'] }} ({{ $artikelLama['sumber'] }}, {{ $artikelLama['tanggal'] }}).
+                                Menyimpan akan <strong>menggantinya</strong>.
+                            </p>
+                        </div>
+                    @endif
+
                     <div class="mb-2 mt-5 flex items-center justify-between">
                         <label for="ringkasan" class="text-sm font-semibold text-slate-800">Ringkasan</label>
                         <span class="text-[11px] font-medium text-slate-500"><span x-text="n"></span> karakter</span>
@@ -142,7 +153,7 @@
             @endif
         </div>
 
-        {{-- ===== Pesan gagal meringkas ===== --}}
+        {{-- ===== Pesan gagal meringkas / menyimpan ===== --}}
         @if ($errorRingkas)
             <div class="border-t border-red-200 bg-red-50 px-5 py-2 text-xs text-red-700">
                 {{ $errorRingkas }}
@@ -165,11 +176,12 @@
                         Batal
                     </button>
                     <button type="button" wire:click="simpan" wire:loading.attr="disabled" wire:target="simpan"
-                            class="flex items-center gap-2 rounded-md bg-bps px-4 py-2 text-sm font-medium text-white transition hover:bg-bps-dark disabled:opacity-60">
+                            class="flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white transition disabled:opacity-60 {{ $artikelLama ? 'bg-amber-600 hover:bg-amber-700' : 'bg-bps hover:bg-bps-dark' }}">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
                         </svg>
-                        Simpan ke Data
+                        <span wire:loading.remove wire:target="simpan">{{ $artikelLama ? 'Ganti & Simpan' : 'Simpan ke Data' }}</span>
+                        <span wire:loading wire:target="simpan">Menyimpan...</span>
                     </button>
                 @else
                     <button type="button" wire:click="tutup"
