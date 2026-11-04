@@ -1,7 +1,8 @@
 @php
     $bulanList = [
-        1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April', 5 => 'Mei', 
-        6 => 'Juni', 7 => 'Juli', 8 => 'Agustus', 9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember',
+        1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
+        5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
+        9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember',
     ];
     $tahunList = range(now()->year, now()->year - 5);
 
@@ -153,19 +154,15 @@
         </div>
     </div>
 
-    {{-- ===== MODAL BACA ARTIKEL ===== --}}
+    {{-- ===== MODAL ARTIKEL (baca + review ringkasan berdampingan) ===== --}}
     @if ($modalBuka && $artikelDipilih)
         <x-reader-modal :artikel="$artikelDipilih"
                         :bacaan="$bacaan"
                         :pesan="$pesanBacaan"
                         :jalur="$jalurPencarian"
-                        :error-ringkas="$pesanRingkas" />
-    @endif
-
-    {{-- ===== MODAL REVIEW RINGKASAN ===== --}}
-    @if ($modalReview && $artikelDipilih)
-        <x-review-modal :artikel="$artikelDipilih"
-                        :jalur="$jalurPencarian"
+                        :error-ringkas="$pesanRingkas"
+                        :peringatan="$peringatanBacaan"
+                        :review="$modalReview"
                         :periode="$periodeLabel"
                         :awal="$ringkasan" />
     @endif

@@ -6,6 +6,7 @@ use App\Models\Category;
 use App\Services\AIService;
 use App\Services\ArticleExtractorService;
 use App\Services\NewsService;
+use App\Support\TeksArtikel;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\Locked;
@@ -43,7 +44,7 @@ class SearchNews extends Component
     #[Locked]
     public string $periodeLabel = '';
 
-    // ---- Modal baca artikel ----
+    // ---- Modal artikel (baca + review berdampingan) ----
     public bool $modalBuka = false;
 
     #[Locked]
@@ -52,10 +53,13 @@ class SearchNews extends Component
     #[Locked]
     public ?array $bacaan = null;
 
+    #[Locked]
+    public ?string $peringatanBacaan = null;
+
     public ?string $pesanBacaan = null;
     public string $teksManual = '';
 
-    // ---- Modal review ringkasan ----
+    // ---- Panel review ringkasan (di samping artikel) ----
     public bool $modalReview = false;
     public string $ringkasan = '';
     public ?string $pesanRingkas = null;
@@ -136,7 +140,7 @@ class SearchNews extends Component
         }
     }
 
-    /** Klik "Pilih artikel ini": ambil isi artikel, lalu buka modal baca. */
+    /** Klik "Pilih artikel ini": ambil isi artikel, bersihkan, lalu buka modal. */
     public function pilih(int $index, ArticleExtractorService $extractor): void
     {
         $artikel = $this->hasil[$index] ?? null;
@@ -148,6 +152,7 @@ class SearchNews extends Component
         $this->artikelDipilih = $artikel;
         $this->bacaan = null;
         $this->pesanBacaan = null;
+        $this->peringatanBacaan = null;
         $this->pesanRingkas = null;
         $this->teksManual = '';
         $this->ringkasan = '';
@@ -155,7 +160,20 @@ class SearchNews extends Component
         $this->resetErrorBag();
 
         try {
-            $this->bacaan = $extractor->ekstrak($artikel['link']);
+            $hasilEkstrak = $extractor->ekstrak($artikel['link']);
+            $bersih = TeksArtikel::bersihkan($hasilEkstrak['paragraf']);
+
+            if (count($bersih['paragraf']) < 2) {
+                throw new \RuntimeException('Artikel ini tampaknya berbayar (paywall): hanya cuplikan yang dapat dibaca.');
+            }
+
+            $hasilEkstrak['paragraf'] = $bersih['paragraf'];
+            $this->bacaan = $hasilEkstrak;
+
+            if (! $bersih['lengkap']) {
+                $this->peringatanBacaan = 'Isi artikel tampak tidak lengkap (kemungkinan sebagian berbayar atau terpotong). '
+                    . 'Periksa lewat "Buka Tautan Asli" sebelum meringkas.';
+            }
         } catch (\RuntimeException $e) {
             $this->pesanBacaan = $e->getMessage();
         } catch (\Throwable $e) {
@@ -186,9 +204,10 @@ class SearchNews extends Component
             'paragraf' => $paragraf,
         ];
         $this->pesanBacaan = null;
+        $this->peringatanBacaan = null;
     }
 
-    /** Klik "Pilih & Ringkas": minta AI meringkas, lalu buka modal review. */
+    /** Klik "Pilih & Ringkas": minta AI meringkas, lalu tampilkan panel review di samping artikel. */
     public function ringkas(AIService $ai): void
     {
         if ($this->bacaan === null || $this->artikelDipilih === null) {
@@ -205,14 +224,22 @@ class SearchNews extends Component
             );
 
             $this->resetErrorBag('ringkasan');
-            $this->modalBuka = false;
-            $this->modalReview = true;
+            $this->modalReview = true; // artikel tetap terbuka di kiri
         } catch (\RuntimeException $e) {
             $this->pesanRingkas = $e->getMessage();
         } catch (\Throwable $e) {
             Log::error('Peringkasan gagal', ['error' => $e->getMessage()]);
             $this->pesanRingkas = 'Terjadi kesalahan saat meringkas artikel.';
         }
+    }
+
+    /** Klik "Batal": tutup panel ringkasan saja, artikel tetap bisa dibaca. */
+    public function batalReview(): void
+    {
+        $this->modalReview = false;
+        $this->ringkasan = '';
+        $this->pesanRingkas = null;
+        $this->resetErrorBag('ringkasan');
     }
 
     /** Klik "Simpan ke Data". */
@@ -243,7 +270,7 @@ class SearchNews extends Component
     public function tutup(): void
     {
         $this->reset([
-            'modalBuka', 'modalReview', 'artikelDipilih', 'bacaan',
+            'modalBuka', 'modalReview', 'artikelDipilih', 'bacaan', 'peringatanBacaan',
             'pesanBacaan', 'pesanRingkas', 'teksManual', 'ringkasan',
         ]);
         $this->resetErrorBag();
