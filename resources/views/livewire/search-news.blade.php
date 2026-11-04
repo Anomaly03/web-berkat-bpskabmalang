@@ -93,6 +93,15 @@
         </form>
     </section>
 
+    {{-- ===== PEMBERITAHUAN (setelah simpan) ===== --}}
+    @if ($notifikasi)
+        <div class="mt-4 flex items-start justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800" role="status">
+            <p>{{ $notifikasi }}</p>
+            <button type="button" wire:click="$set('notifikasi', null)"
+                    class="text-lg leading-none text-emerald-700 hover:text-emerald-900" aria-label="Tutup pemberitahuan">&times;</button>
+        </div>
+    @endif
+
     {{-- ===== HASIL PENCARIAN ===== --}}
     @if ($sudahCari)
         <section class="mt-6">
@@ -137,6 +146,9 @@
                 </div>
             @endif
         </section>
+
+        {{-- ===== DATA TERSIMPAN BULAN INI ===== --}}
+        <x-saved-list :items="$tersimpan" :total="$totalKategori" :periode="$periodeLabel" />
     @endif
 
     {{-- ===== OVERLAY LOADING (ambil artikel / ringkas AI) ===== --}}
@@ -164,6 +176,7 @@
                         :peringatan="$peringatanBacaan"
                         :review="$modalReview"
                         :periode="$periodeLabel"
-                        :awal="$ringkasan" />
+                        :awal="$ringkasan"
+                        :artikel-lama="$artikelLama" />
     @endif
 </div>
