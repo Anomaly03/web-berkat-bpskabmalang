@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Models\Article;
 use App\Models\Category;
 use App\Services\AIService;
 use App\Services\ArticleExtractorService;
@@ -64,6 +65,13 @@ class SearchNews extends Component
     public string $ringkasan = '';
     public ?string $pesanRingkas = null;
 
+    /** Artikel yang sudah tersimpan untuk kategori + bulan yang sama (akan diganti saat simpan). */
+    #[Locked]
+    public ?array $artikelLama = null;
+
+    // ---- Pemberitahuan setelah simpan ----
+    public ?string $notifikasi = null;
+
     public function updatedSektorId(): void
     {
         $this->subsektorId = '';
@@ -116,6 +124,7 @@ class SearchNews extends Component
         }
 
         $this->tutup();
+        $this->notifikasi = null;
         $this->pesanError = null;
         $this->hasil = [];
         $this->sudahCari = true;
@@ -149,6 +158,7 @@ class SearchNews extends Component
             return;
         }
 
+        $this->notifikasi = null;
         $this->artikelDipilih = $artikel;
         $this->bacaan = null;
         $this->pesanBacaan = null;
@@ -156,6 +166,7 @@ class SearchNews extends Component
         $this->pesanRingkas = null;
         $this->teksManual = '';
         $this->ringkasan = '';
+        $this->artikelLama = null;
         $this->modalReview = false;
         $this->resetErrorBag();
 
@@ -223,6 +234,18 @@ class SearchNews extends Component
                 Arr::last($this->jalurPencarian) ?? ''
             );
 
+            // Beri tahu user jika kategori + bulan ini sudah punya artikel tersimpan
+            $lama = Article::where('category_id', $this->kategoriIdHasil)
+                ->where('bulan_target', $this->bulanHasil)
+                ->where('tahun_target', $this->tahunHasil)
+                ->first();
+
+            $this->artikelLama = $lama ? [
+                'judul'   => $lama->judul,
+                'sumber'  => $lama->sumber,
+                'tanggal' => $lama->tanggal_rilis->locale('id')->translatedFormat('j F Y'),
+            ] : null;
+
             $this->resetErrorBag('ringkasan');
             $this->modalReview = true; // artikel tetap terbuka di kiri
         } catch (\RuntimeException $e) {
@@ -239,10 +262,11 @@ class SearchNews extends Component
         $this->modalReview = false;
         $this->ringkasan = '';
         $this->pesanRingkas = null;
+        $this->artikelLama = null;
         $this->resetErrorBag('ringkasan');
     }
 
-    /** Klik "Simpan ke Data". */
+    /** Klik "Simpan ke Data" / "Ganti & Simpan". */
     public function simpan(): void
     {
         $this->validate(
@@ -254,24 +278,46 @@ class SearchNews extends Component
             ]
         );
 
-        // SEMENTARA: tahap berikutnya -> Article::create([...]) ke database.
-        dd([
-            'category_id'   => $this->kategoriIdHasil,
-            'judul'         => $this->artikelDipilih['judul'],
-            'link'          => $this->bacaan['url_asli'],
-            'sumber'        => $this->artikelDipilih['sumber'],
-            'tanggal_rilis' => substr($this->artikelDipilih['tanggal'], 0, 10),
-            'ringkasan'     => $this->ringkasan,
-            'bulan_target'  => $this->bulanHasil,
-            'tahun_target'  => $this->tahunHasil,
-        ]);
+        if ($this->kategoriIdHasil === null || $this->artikelDipilih === null || $this->bacaan === null) {
+            return;
+        }
+
+        try {
+            // Kunci unik: kategori + bulan + tahun. Jika sudah ada, isinya diganti.
+            $artikel = Article::updateOrCreate(
+                [
+                    'category_id'  => $this->kategoriIdHasil,
+                    'bulan_target' => $this->bulanHasil,
+                    'tahun_target' => $this->tahunHasil,
+                ],
+                [
+                    'judul'         => mb_substr($this->artikelDipilih['judul'], 0, 255),
+                    'link'          => $this->bacaan['url_asli'],
+                    'sumber'        => mb_substr($this->artikelDipilih['sumber'], 0, 255),
+                    'tanggal_rilis' => substr($this->artikelDipilih['tanggal'], 0, 10),
+                    'ringkasan'     => trim($this->ringkasan),
+                ]
+            );
+        } catch (\Throwable $e) {
+            Log::error('Gagal menyimpan artikel', ['error' => $e->getMessage()]);
+            $this->pesanRingkas = 'Gagal menyimpan ke database. Coba lagi.';
+
+            return;
+        }
+
+        $pesan = $artikel->wasRecentlyCreated
+            ? 'Ringkasan berhasil disimpan ke data.'
+            : 'Artikel sebelumnya berhasil diganti dengan yang baru.';
+
+        $this->tutup();
+        $this->notifikasi = $pesan;
     }
 
     public function tutup(): void
     {
         $this->reset([
             'modalBuka', 'modalReview', 'artikelDipilih', 'bacaan', 'peringatanBacaan',
-            'pesanBacaan', 'pesanRingkas', 'teksManual', 'ringkasan',
+            'pesanBacaan', 'pesanRingkas', 'teksManual', 'ringkasan', 'artikelLama',
         ]);
         $this->resetErrorBag();
     }
@@ -282,10 +328,21 @@ class SearchNews extends Component
             ? Category::where('parent_id', $id)->orderBy('id')->get()
             : collect();
 
+        // Data tersimpan untuk bulan yang sedang dicari (semua kategori)
+        $tersimpan = $this->sudahCari && $this->bulanHasil > 0
+            ? Article::with('category')
+                ->where('bulan_target', $this->bulanHasil)
+                ->where('tahun_target', $this->tahunHasil)
+                ->orderBy('category_id')
+                ->get()
+            : collect();
+
         return view('livewire.search-news', [
             'sektorOptions'       => Category::whereNull('parent_id')->orderBy('id')->get(),
             'subsektorOptions'    => $byParent($this->sektorId),
             'subSubsektorOptions' => $byParent($this->subsektorId),
+            'tersimpan'           => $tersimpan,
+            'totalKategori'       => Category::count(),
         ]);
     }
 }
